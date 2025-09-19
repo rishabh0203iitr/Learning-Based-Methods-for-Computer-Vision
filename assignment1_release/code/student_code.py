@@ -234,11 +234,15 @@ class Scale(object):
             #################################################################################
             # Fill in the code here
             #################################################################################
+            if img.shape[0]<img.shape[1]:
+                size = (self.size, self.size / (img.shape[0]//img.shape[1]))
+                img = resize_image(img, size, interpolation=interpolation)
             return img
         else:
             #################################################################################
             # Fill in the code here
             #################################################################################
+            img = resize_image(img, size, interpolation=interpolation)
             return img
 
     def __repr__(self):
@@ -268,7 +272,28 @@ class RandomColor(object):
         #################################################################################
         # Fill in the code here
         #################################################################################
-        return img
+        if len(img.shape) == 2:
+            num_channels = 1
+        else:
+            num_channels = img.shape[2]
+
+        alphas = np.random.uniform(-self.color_range, self.color_range, size=num_channels)
+
+        luts = []
+        for alpha in alphas:
+            lut = np.arange(256) * (1 + alpha)
+            lut = np.clip(lut, 0, 255).astype(np.uint8)
+            luts.append(lut)
+
+        if len(img.shape) == 2:
+            return luts[0][img]
+
+        else:
+            result = np.zeros_like(img)
+            for c in range(num_channels):
+                result[:, :, c] = luts[c][img[:, :, c]]
+
+        return result
 
     def __repr__(self):
         return "Random Color [Range {:.2f} - {:.2f}]".format(
