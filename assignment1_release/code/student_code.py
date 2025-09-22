@@ -149,8 +149,6 @@ class RandomSizedCrop(object):
                 else:
                     img = resize_image(img, self.size, interpolation=interpolation)
 
-                print(img.shape)
-
                 return img
 
         # Fall back
@@ -164,13 +162,11 @@ class RandomSizedCrop(object):
             x1 = int(round((w - tw) / 2.0))
             y1 = int(round((h - th) / 2.0))
             img = img[y1 : y1 + th, x1 : x1 + tw]
-            print(img.shape)
             return img
         else:
             # with a pre-specified output size, the default crop is the image itself
             im_scale = Scale(self.size, interpolations=self.interpolations)
             img = im_scale(img)
-            print(img.shape)
             return img
 
     def __repr__(self):
@@ -241,14 +237,15 @@ class Scale(object):
             if img.shape[0]<img.shape[1]:
                 size = (self.size, (self.size*img.shape[1]) // (img.shape[0]))
                 img = resize_image(img, size, interpolation=interpolation)
-            print('s',img.shape)
+            else:
+                size = ((self.size*img.shape[0]) // (img.shape[1]), self.size)
+                img = resize_image(img, size, interpolation=interpolation)
             return img
         else:
             #################################################################################
             # Fill in the code here
             #################################################################################
             img = resize_image(img, size, interpolation=interpolation)
-            print('s',img.shape)
             return img
 
     def __repr__(self):
@@ -299,7 +296,6 @@ class RandomColor(object):
             for c in range(num_channels):
                 result[:, :, c] = luts[c][img[:, :, c]]
 
-        print('rc',result.shape)
         return result
 
     def __repr__(self):
@@ -400,7 +396,6 @@ class RandomRotate(object):
         img = out
 
         # get the rectangular with max area in the rotated image
-        print('rr',img.shape)
         return img
 
     def __repr__(self):
