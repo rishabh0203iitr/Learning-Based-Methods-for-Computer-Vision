@@ -149,6 +149,8 @@ class RandomSizedCrop(object):
                 else:
                     img = resize_image(img, self.size, interpolation=interpolation)
 
+                print(img.shape)
+
                 return img
 
         # Fall back
@@ -162,11 +164,13 @@ class RandomSizedCrop(object):
             x1 = int(round((w - tw) / 2.0))
             y1 = int(round((h - th) / 2.0))
             img = img[y1 : y1 + th, x1 : x1 + tw]
+            print(img.shape)
             return img
         else:
             # with a pre-specified output size, the default crop is the image itself
             im_scale = Scale(self.size, interpolations=self.interpolations)
             img = im_scale(img)
+            print(img.shape)
             return img
 
     def __repr__(self):
@@ -235,14 +239,16 @@ class Scale(object):
             # Fill in the code here
             #################################################################################
             if img.shape[0]<img.shape[1]:
-                size = (self.size, self.size / (img.shape[0]//img.shape[1]))
+                size = (self.size, (self.size*img.shape[1]) // (img.shape[0]))
                 img = resize_image(img, size, interpolation=interpolation)
+            print('s',img.shape)
             return img
         else:
             #################################################################################
             # Fill in the code here
             #################################################################################
             img = resize_image(img, size, interpolation=interpolation)
+            print('s',img.shape)
             return img
 
     def __repr__(self):
@@ -293,6 +299,7 @@ class RandomColor(object):
             for c in range(num_channels):
                 result[:, :, c] = luts[c][img[:, :, c]]
 
+        print('rc',result.shape)
         return result
 
     def __repr__(self):
@@ -332,7 +339,68 @@ class RandomRotate(object):
         #################################################################################
         # Fill in the code here
         #################################################################################
+        H, W = img.shape[:2]
+        cx, cy = (W - 1) / 2.0, (H - 1) / 2.0  # pixel-center
+
+        # --- A) crop half-sizes (X,Y) from closed-form using folded angle
+        def crop_half_sizes(W, H, deg):
+            a, b = W / 2.0, H / 2.0
+            th = abs(math.radians(deg)) % math.pi
+            if th > math.pi / 2: th = math.pi - th
+            th = max(min(th, math.pi/2 - 1e-12), 1e-12)
+            s, c = math.sin(th), math.cos(th)
+            s2, c2 = math.sin(2*th), math.cos(2*th)
+            if s2 >= (a / b):          # Case 2: u=a tight, v interior
+                X = a / (2*c)
+                Y = a / (2*s)
+            else:                      # Case 1: both tight
+                if abs(c2) < 1e-12:    # numeric guard near 45°
+                    X = a / (2*max(c,1e-12))
+                    Y = a / (2*max(s,1e-12))
+                else:
+                    X = (a*c - b*s) / c2
+                    Y = (b*c - a*s) / c2
+            return max(0.0, X), max(0.0, Y)
+
+        X, Y = crop_half_sizes(W, H, degree)
+
+        # integer crop box in the *rotated* frame (centered at image center)
+        x1 = int(math.ceil(cx - X)); x2 = int(math.floor(cx + X))
+        y1 = int(math.ceil(cy - Y)); y2 = int(math.floor(cy + Y))
+        if x2 <= x1 or y2 <= y1:
+            return img  # degenerate
+
+        # --- B) sample only inside that rectangle using ACTUAL angle (inverse rotation)
+        out_w, out_h = x2 - x1 + 1, y2 - y1 + 1
+        ys, xs = np.meshgrid(np.arange(y1, y1+out_h, dtype=np.float32),
+                             np.arange(x1, x1+out_w, dtype=np.float32),
+                             indexing='ij')
+
+        th = math.radians(degree)
+        c, s = math.cos(th), math.sin(th)
+
+        # inverse map: (x,y) in rotated -> (x0,y0) in original
+        x0 = (xs - cx) * c + (ys - cy) * s + cx
+        y0 = -(xs - cx) * s + (ys - cy) * c + cy
+
+        xi = np.rint(x0).astype(np.int64)
+        yi = np.rint(y0).astype(np.int64)
+
+        # in-bounds mask
+        m = (xi >= 0) & (xi < W) & (yi >= 0) & (yi < H)
+
+        if img.ndim == 2:
+            out = np.zeros((out_h, out_w), dtype=img.dtype)
+            out[m] = img[yi[m], xi[m]]
+        else:
+            C = img.shape[2]
+            out = np.zeros((out_h, out_w, C), dtype=img.dtype)
+            out[m] = img[yi[m], xi[m]]
+
+        img = out
+
         # get the rectangular with max area in the rotated image
+        print('rr',img.shape)
         return img
 
     def __repr__(self):
