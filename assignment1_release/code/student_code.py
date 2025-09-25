@@ -237,6 +237,7 @@ class Scale(object):
             if img.shape[0]<img.shape[1]:
                 size = (self.size, (self.size*img.shape[1]) // (img.shape[0]))
                 img = resize_image(img, size, interpolation=interpolation)
+            
             else:
                 size = ((self.size*img.shape[0]) // (img.shape[1]), self.size)
                 img = resize_image(img, size, interpolation=interpolation)
@@ -324,21 +325,17 @@ class RandomRotate(object):
         self.interpolations = interpolations
 
     def __call__(self, img):
-        # sample interpolation method
-        interpolation = random.sample(self.interpolations, 1)[0]
-        # sample rotation
-        degree = random.uniform(-self.degree_range, self.degree_range)
-        # ignore small rotations
-        if np.abs(degree) <= 1.0:
-            return img
-
         #################################################################################
         # Fill in the code here
         #################################################################################
+        degree = random.uniform(-self.degree_range, self.degree_range)
+        if np.abs(degree) <= 1.0:
+            return img
+        
         H, W = img.shape[:2]
         cx, cy = (W - 1) / 2.0, (H - 1) / 2.0  # pixel-center
 
-        # --- A) crop half-sizes (X,Y) from closed-form using folded angle
+        # crop half-sizes (X,Y) from closed-form using folded angle
         def crop_half_sizes(W, H, deg):
             a, b = W / 2.0, H / 2.0
             th = abs(math.radians(deg)) % math.pi
@@ -350,7 +347,7 @@ class RandomRotate(object):
                 X = a / (2*c)
                 Y = a / (2*s)
             else:                      # Case 1: both tight
-                if abs(c2) < 1e-12:    # numeric guard near 45°
+                if abs(c2) < 1e-12:
                     X = a / (2*max(c,1e-12))
                     Y = a / (2*max(s,1e-12))
                 else:
@@ -360,13 +357,15 @@ class RandomRotate(object):
 
         X, Y = crop_half_sizes(W, H, degree)
 
-        # integer crop box in the *rotated* frame (centered at image center)
-        x1 = int(math.ceil(cx - X)); x2 = int(math.floor(cx + X))
-        y1 = int(math.ceil(cy - Y)); y2 = int(math.floor(cy + Y))
+        x1 = int(math.ceil(cx - X))
+        x2 = int(math.floor(cx + X))
+        y1 = int(math.ceil(cy - Y))
+        y2 = int(math.floor(cy + Y))
+        
         if x2 <= x1 or y2 <= y1:
-            return img  # degenerate
+            return img
 
-        # --- B) sample only inside that rectangle using ACTUAL angle (inverse rotation)
+        # sample only inside that rectangle using ACTUAL angle (inverse rotation)
         out_w, out_h = x2 - x1 + 1, y2 - y1 + 1
         ys, xs = np.meshgrid(np.arange(y1, y1+out_h, dtype=np.float32),
                              np.arange(x1, x1+out_w, dtype=np.float32),
@@ -395,7 +394,6 @@ class RandomRotate(object):
 
         img = out
 
-        # get the rectangular with max area in the rotated image
         return img
 
     def __repr__(self):
