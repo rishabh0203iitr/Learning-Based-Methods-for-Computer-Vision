@@ -277,9 +277,9 @@ class Attention(nn.Module):
         att = (q @ k.transpose(-2, -1)) * self.scale # (B * nHead, H * W, H * W)
         att = torch.nn.functional.softmax(att, dim=-1) # (B * nHead, H * W, H * W)
         x = (att @ v) # (B * nHead, H * W, C)
-        x = x.reshape(B, self.num_heads, H * W, -1) # (B, nHead, H * W, nHead * C)
-        x = x.permute(0, 2, 1, 3).reshape(B, H * W, -1) # (B, H * W, nHead * C)
-        x = self.proj(x).reshape(B, H, W, -1) # (B, H, W, C)
+        x = x.view(B, self.num_heads, H * W, -1) # (B, nHead, H * W, C)
+        x = x.permute(0, 2, 1, 3).view(B, H * W, -1) # (B, H * W, nHead * C)
+        x = self.proj(x).view(B, H, W, -1) # (B, H, W, C)
         return x
 
 class TransformerBlock(nn.Module):
@@ -459,11 +459,10 @@ class SimpleViT(nn.Module):
         ########################################################################
         # Fill in the code here
         ########################################################################
-        B=x.shape[0]
         x = self.patch_embed(x)
         x = x + self.pos_embed if self.pos_embed is not None else x
         x = self.transformer_blocks(x)
-        x = self.out(x.reshape(B,-1))
+        x = self.out(x.view(x.shape[0],-1))
         return x
 
 # change this to your model!
