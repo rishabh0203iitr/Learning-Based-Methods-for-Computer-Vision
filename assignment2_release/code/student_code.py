@@ -432,12 +432,11 @@ class SimpleViT(nn.Module):
         ########################################################################
         # The implementation shall define some Transformer blocks
         self.features = nn.ModuleList([])
-        num_blocks=4
-        for i in range(num_blocks):
+        for i in range(depth):
             layer_window_size=0
             if i in window_block_indexes:
                 layer_window_size = window_size
-            self.features.append(TransformerBlock(embed_dim, num_heads, mlp_ratio, qkv_bias, dpr, norm_layer, act_layer, layer_window_size))
+            self.features.append(TransformerBlock(embed_dim, num_heads, mlp_ratio, qkv_bias, dpr[i], norm_layer, act_layer, layer_window_size))
         self.out=nn.Linear((img_size // patch_size)*(img_size // patch_size)*embed_dim, num_classes)
 
         if self.pos_embed is not None:
@@ -459,9 +458,11 @@ class SimpleViT(nn.Module):
         ########################################################################
         # Fill in the code here
         ########################################################################
+        B=x.shape[0]
         x = self.patch_embed(x)
-        x = self.features(x)
-        x = self.out(x)
+        for module_block in self.features:
+            x=module_block(x)
+        x = self.out(x.reshape(B,-1))
         return x
 
 # change this to your model!
